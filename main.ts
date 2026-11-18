@@ -521,7 +521,7 @@ function dessinerTitre(toile: Image) {
     // suit la longueur du nom.
     if (!logoTitre) {
         logoTitre = image.create(160, 30)
-        filmDessinerLettres(logoTitre, filmImageTitre, 2, filmEchelleTitre(136), 100000, -10, true, -1)
+        filmDessinerLettres(logoTitre, filmImageTitre, 2, filmEchelleTitre(136), 100000, -10240, true, -1)
     }
     toile.drawTransparentImage(logoTitre, 0, 13)
     // Le Calliope Hacker à son bureau, devant un mur de la couleur hacker.COULEUR_MUR.

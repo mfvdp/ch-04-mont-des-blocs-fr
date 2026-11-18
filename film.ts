@@ -1,8 +1,11 @@
 // L'intro avec la carte du studio et le titre.
 // Un voyage continu de 22 secondes (FILM_DUREE_MS = 22000) à travers un petit décor en 3D, construit seulement pour le
 // film. Il ne change pas le monde, n'utilise ni vidéo ni sprites, et ne crée aucune nouvelle image à chaque image
-// affichée. Déroulement : vol entre les îles, la porte se charge, vol à travers la porte (cette première station
-// s'appelle le vol), puis la carte « Calliope Hacker présente » au-dessus de l'île d'arrivée et enfin le titre du jeu.
+// affichée. Tous les calculs utilisent des nombres entiers : les positions dans le monde, le sinus et le cosinus
+// en 1024es, les points de l'écran en 16es de pixel. Le Calliope range chaque nombre à virgule comme un petit objet
+// dans sa mémoire. Avec des milliers par image, il devait ranger sans arrêt, et l'intro saccadait. Déroulement : vol
+// entre les îles, la porte se charge, vol à travers la porte (cette première station s'appelle le vol), puis la carte
+// « Calliope Hacker présente » au-dessus de l'île d'arrivée et enfin le titre du jeu.
 let filmFini = false
 let filmMs = 0
 let filmChapitre = 0
@@ -40,15 +43,15 @@ let filmFaces = [0, 2, 3, 1, 4, 5, 7, 6, 0, 1, 5, 4, 2, 6, 7, 3, 0, 4, 6, 2, 1, 
 let filmFacesOrdre = [0, 0, 0]
 let filmFacesDistance = [0, 0, 0]
 let filmCameraX = 0
-let filmCameraY = 3
+let filmCameraY = 3072
 let filmCameraZ = 0
 let filmSinRotation = 0
-let filmCosRotation = 1
+let filmCosRotation = 1024
 let filmSinInclinaison = 0
-let filmCosInclinaison = 1
+let filmCosInclinaison = 1024
 let filmSinRoulis = 0
-let filmCosRoulis = 1
-let filmFocale = 92
+let filmCosRoulis = 1024
+let filmFocale = 1472
 let filmEcranX = 0
 let filmEcranY = 0
 let filmProfondeur = 0
@@ -56,12 +59,12 @@ let filmSoir = false
 
 function filmAjouterBoite(x: number, y: number, z: number,
     largeur: number, hauteur: number, profondeur: number, sorte: number) {
-    filmBoiteX.push(x)
-    filmBoiteY.push(y)
-    filmBoiteZ.push(z)
-    filmBoiteLargeur.push(largeur)
-    filmBoiteHauteur.push(hauteur)
-    filmBoiteProfondeur.push(profondeur)
+    filmBoiteX.push(Math.round(x * 1024))
+    filmBoiteY.push(Math.round(y * 1024))
+    filmBoiteZ.push(Math.round(z * 1024))
+    filmBoiteLargeur.push(Math.round(largeur * 512))
+    filmBoiteHauteur.push(Math.round(hauteur * 512))
+    filmBoiteProfondeur.push(Math.round(profondeur * 512))
     filmBoiteSorte.push(sorte)
     filmBoitesOrdre.push(0)
     filmBoitesDistance.push(0)
@@ -93,8 +96,8 @@ function filmPreparer() {
     filmImageTitre = image.create(TITRE.length * 6, 8)
     filmImageTitre.print(TITRE, 0, 0, 1, image.font8)
     for (let i = 0; i <= 24; i++) {
-        filmAnneauX.push(Math.cos(i * Math.PI / 12))
-        filmAnneauY.push(Math.sin(i * Math.PI / 12))
+        filmAnneauX.push(Math.round(Math.cos(i * Math.PI / 12) * 1024))
+        filmAnneauY.push(Math.round(Math.sin(i * Math.PI / 12) * 1024))
     }
     for (let i = 0; i < 8; i++) {
         filmCoinX.push(0)
@@ -171,30 +174,30 @@ function filmAdoucir(valeur: number): number {
 }
 
 function filmPlacerCamera(x: number, y: number, z: number, rotation: number, inclinaison: number, roulis: number) {
-    filmCameraX = x
-    filmCameraY = y
-    filmCameraZ = z
-    filmSinRotation = Math.sin(rotation)
-    filmCosRotation = Math.cos(rotation)
-    filmSinInclinaison = Math.sin(inclinaison)
-    filmCosInclinaison = Math.cos(inclinaison)
-    filmSinRoulis = Math.sin(roulis)
-    filmCosRoulis = Math.cos(roulis)
+    filmCameraX = Math.round(x * 1024)
+    filmCameraY = Math.round(y * 1024)
+    filmCameraZ = Math.round(z * 1024)
+    filmSinRotation = Math.round(Math.sin(rotation) * 1024)
+    filmCosRotation = Math.round(Math.cos(rotation) * 1024)
+    filmSinInclinaison = Math.round(Math.sin(inclinaison) * 1024)
+    filmCosInclinaison = Math.round(Math.cos(inclinaison) * 1024)
+    filmSinRoulis = Math.round(Math.sin(roulis) * 1024)
+    filmCosRoulis = Math.round(Math.cos(roulis) * 1024)
 }
 
 function filmProjeter(x: number, y: number, z: number) {
     let dx = x - filmCameraX
     let dy = y - filmCameraY
     let dz = z - filmCameraZ
-    let tourneX = dx * filmCosRotation - dz * filmSinRotation
-    let tourneZ = dz * filmCosRotation + dx * filmSinRotation
-    let tourneY = dy * filmCosInclinaison - tourneZ * filmSinInclinaison
-    filmProfondeur = tourneZ * filmCosInclinaison + dy * filmSinInclinaison
-    let echelle = filmFocale / Math.max(0.5, filmProfondeur)
-    let platX = tourneX * echelle
-    let platY = -tourneY * echelle
-    filmEcranX = 80 + platX * filmCosRoulis - platY * filmSinRoulis
-    filmEcranY = 57 + platY * filmCosRoulis + platX * filmSinRoulis
+    let tourneX = (dx * filmCosRotation - dz * filmSinRotation) >> 10
+    let tourneZ = (dz * filmCosRotation + dx * filmSinRotation) >> 10
+    let tourneY = (dy * filmCosInclinaison - tourneZ * filmSinInclinaison) >> 10
+    filmProfondeur = (tourneZ * filmCosInclinaison + dy * filmSinInclinaison) >> 10
+    let echelle = Math.max(512, filmProfondeur)
+    let platX = Math.idiv(tourneX * filmFocale, echelle)
+    let platY = -Math.idiv(tourneY * filmFocale, echelle)
+    filmEcranX = 1280 + ((platX * filmCosRoulis - platY * filmSinRoulis) >> 10)
+    filmEcranY = 912 + ((platY * filmCosRoulis + platX * filmSinRoulis) >> 10)
 }
 
 // MakeCode remplit lui-même les triangles (fillTriangle), vite et avec des entiers ; ce qui dépasse du bord de l'image
@@ -212,11 +215,11 @@ function filmDessinerFace(toile: Image, face: number, couleur: number, couleurBo
     let coinB = filmFaces[premierCoin + 1]
     let coinC = filmFaces[premierCoin + 2]
     let coinD = filmFaces[premierCoin + 3]
-    filmRemplirTriangle(toile,
+    toile.fillTriangle(
         filmCoinX[coinA], filmCoinY[coinA],
         filmCoinX[coinB], filmCoinY[coinB],
         filmCoinX[coinC], filmCoinY[coinC], couleur)
-    filmRemplirTriangle(toile,
+    toile.fillTriangle(
         filmCoinX[coinA], filmCoinY[coinA],
         filmCoinX[coinC], filmCoinY[coinC],
         filmCoinX[coinD], filmCoinY[coinD], couleur)
@@ -243,29 +246,29 @@ function filmDessinerBoite(toile: Image, boite: number) {
     let y = filmBoiteY[boite]
     let z = filmBoiteZ[boite]
     let sorte = filmBoiteSorte[boite]
-    let demiLargeur = filmBoiteLargeur[boite] * 0.5
-    let demiHauteur = filmBoiteHauteur[boite] * 0.5
-    let demiProfondeur = filmBoiteProfondeur[boite] * 0.5
+    let demiLargeur = filmBoiteLargeur[boite]
+    let demiHauteur = filmBoiteHauteur[boite]
+    let demiProfondeur = filmBoiteProfondeur[boite]
     let xMin = 10000
     let xMax = -10000
     let yMin = 10000
     let yMax = -10000
     for (let i = 0; i < 8; i++) {
-        let retrecissement = sorte == 1 && (i & 2) == 0 ? 0.58 : 1
-        filmProjeter(x + ((i & 1) == 0 ? -demiLargeur : demiLargeur) * retrecissement,
+        let retrecissement = sorte == 1 && (i & 2) == 0 ? 594 : 1024
+        filmProjeter(x + ((((i & 1) == 0 ? -demiLargeur : demiLargeur) * retrecissement) >> 10),
             y + ((i & 2) == 0 ? -demiHauteur : demiHauteur),
-            z + ((i & 4) == 0 ? -demiProfondeur : demiProfondeur) * retrecissement)
+            z + ((((i & 4) == 0 ? -demiProfondeur : demiProfondeur) * retrecissement) >> 10))
         // Si un coin est trop près devant la caméra (profondeur sous 1,25) ou derrière elle, la boîte n'est pas
         // dessinée du tout. Toutes les grandes pièces du décor sont sur le côté de la trajectoire : on ne le remarque
         // pas, et aucune face déformée n'apparaît.
-        if (filmProfondeur < 1.25) return
-        filmCoinX[i] = filmEcranX
-        filmCoinY[i] = filmEcranY
+        if (filmProfondeur < 1280) return
+        filmCoinX[i] = (filmEcranX + 8) >> 4
+        filmCoinY[i] = (filmEcranY + 8) >> 4
         filmCoinZ[i] = filmProfondeur
-        xMin = Math.min(xMin, filmEcranX)
-        xMax = Math.max(xMax, filmEcranX)
-        yMin = Math.min(yMin, filmEcranY)
-        yMax = Math.max(yMax, filmEcranY)
+        xMin = Math.min(xMin, filmCoinX[i])
+        xMax = Math.max(xMax, filmCoinX[i])
+        yMin = Math.min(yMin, filmCoinY[i])
+        yMax = Math.max(yMax, filmCoinY[i])
     }
     if (xMax < 0 || xMin > 159 || yMax < 6 || yMin > 111) return
     // De chaque boîte, on ne dessine que les trois faces tournées vers la caméra.
@@ -321,7 +324,7 @@ function filmDessinerBoite(toile: Image, boite: number) {
         }
         // La profondeur reste visible : les îles et les arbres lointains (boîtes de sorte inférieure à 4) prennent, à
         // plus de 48 unités, toutes les couleurs de la brume.
-        if (z - filmCameraZ > 48 && sorte < 4) {
+        if (z - filmCameraZ > 49152 && sorte < 4) {
             couleur = estDessus ? (sorte == 0 || sorte == 3 ? 6 : 11) : 12
             couleurBord = couleur
         }
@@ -332,10 +335,10 @@ function filmDessinerBoite(toile: Image, boite: number) {
 function filmDessinerDecor(toile: Image) {
     let nombre = 0
     for (let i = 0; i < filmBoiteX.length; i++) {
-        let avance = (filmBoiteZ[i] - filmCameraZ) * filmCosRotation +
-            (filmBoiteX[i] - filmCameraX) * filmSinRotation
-        let distance = avance * filmCosInclinaison + (filmBoiteY[i] - filmCameraY) * filmSinInclinaison
-        if (distance < 1 || distance > 84) continue
+        let avance = ((filmBoiteZ[i] - filmCameraZ) * filmCosRotation +
+            (filmBoiteX[i] - filmCameraX) * filmSinRotation) >> 10
+        let distance = (avance * filmCosInclinaison + (filmBoiteY[i] - filmCameraY) * filmSinInclinaison) >> 10
+        if (distance < 1024 || distance > 86016) continue
         // Les boîtes sont triées selon leur distance, les plus lointaines d'abord. Cela se fait dans des listes déjà
         // existantes : aucun nouvel objet n'est créé.
         let j = nombre - 1
@@ -351,14 +354,17 @@ function filmDessinerDecor(toile: Image) {
     for (let i = 0; i < nombre; i++) filmDessinerBoite(toile, filmBoitesOrdre[i])
 }
 
+// Le centre et les rayons arrivent en 16es de pixel. On arrondit au pixel entier seulement pour dessiner : + 8, puis
+// >> 4 (divisé par 16).
 function filmRemplirEllipse(toile: Image, x: number, y: number, rayonX: number, rayonY: number, couleur: number) {
     if (rayonX <= 0 || rayonY <= 0) return
     let precedentX = x + rayonX
     let precedentY = y
     for (let i = 1; i <= 24; i++) {
-        let pointX = x + filmAnneauX[i] * rayonX
-        let pointY = y + filmAnneauY[i] * rayonY
-        filmRemplirTriangle(toile, x, y, precedentX, precedentY, pointX, pointY, couleur)
+        let pointX = x + ((filmAnneauX[i] * rayonX) >> 10)
+        let pointY = y + ((filmAnneauY[i] * rayonY) >> 10)
+        toile.fillTriangle((x + 8) >> 4, (y + 8) >> 4, (precedentX + 8) >> 4, (precedentY + 8) >> 4,
+            (pointX + 8) >> 4, (pointY + 8) >> 4, couleur)
         precedentX = pointX
         precedentY = pointY
     }
@@ -366,7 +372,7 @@ function filmRemplirEllipse(toile: Image, x: number, y: number, rayonX: number, 
 
 function filmDessinerCiel(toile: Image, soir: boolean, forceVol: number) {
     toile.fill(15)
-    let horizon = Math.max(33, Math.min(85, 57 + filmSinInclinaison * 92))
+    let horizon = Math.max(33, Math.min(85, 57 + ((filmSinInclinaison * 92) >> 10)))
     toile.fillRect(0, horizon - 15, 160, 127 - horizon, 8)
     toile.fillRect(0, horizon + 9, 160, 111 - horizon, 12)
     toile.fillRect(0, horizon + 35, 160, 112 - (horizon + 35), 15)
@@ -374,69 +380,80 @@ function filmDessinerCiel(toile: Image, soir: boolean, forceVol: number) {
         toile.fillRect(0, horizon - 6, 160, 29, 12)
         toile.fillRect(0, horizon + 14, 160, 21, 11)
         // Un grand soleil à contre-jour, avec des bandes de lumière en paliers.
-        let soleilX = 127 - filmCameraX * 2
-        filmRemplirEllipse(toile, soleilX, 52, 22, 22, 4)
-        filmRemplirEllipse(toile, soleilX, 50, 17, 17, 5)
-        toile.fillRect(99 - filmCameraX * 2, 59, 57, 2, 12)
-        toile.fillRect(103 - filmCameraX * 2, 64, 49, 2, 12)
-        filmRemplirTriangle(toile, soleilX - 6, 62, 5, 111, 27, 111, 8)
-        filmRemplirTriangle(toile, soleilX - 2, 62, 47, 111, 57, 111, 12)
-        filmRemplirTriangle(toile, soleilX + 6, 62, 137, 111, 159, 111, 8)
+        let soleilX = 2032 - (filmCameraX >> 5)
+        filmRemplirEllipse(toile, soleilX, 832, 352, 352, 4)
+        filmRemplirEllipse(toile, soleilX, 800, 272, 272, 5)
+        soleilX = (soleilX + 8) >> 4
+        toile.fillRect(soleilX - 28, 59, 57, 2, 12)
+        toile.fillRect(soleilX - 24, 64, 49, 2, 12)
+        toile.fillTriangle(soleilX - 6, 62, 5, 111, 27, 111, 8)
+        toile.fillTriangle(soleilX - 2, 62, 47, 111, 57, 111, 12)
+        toile.fillTriangle(soleilX + 6, 62, 137, 111, 159, 111, 8)
     } else {
         // Des bandes de ciel étroites suivent la caméra quand elle tourne.
         for (let i = 0; i < 5; i++) {
-            let x = 14 + i * 29 - filmSinRotation * 70
+            let x = 14 + i * 29 - ((filmSinRotation * 70) >> 10)
             toile.drawLine(x, 24 + i * 3, x + 29, 20 + i * 3, 8)
         }
     }
+    // Les étoiles comptent en 16es de pixel. decalage (le chemin déjà parcouru par les étoiles) et trainee (la longueur
+    // des traits de lumière pendant le vol à travers la porte) sont calculés une seule fois par image.
+    let decalage = Math.round((filmMs * (0.006 + forceVol * 0.12)) % 128 * 16)
+    let trainee = Math.round(forceVol * 307)
     for (let i = 0; i < 28; i++) {
-        let distance = 30 + ((i * 37 + 128 - ((filmMs * (0.006 + forceVol * 0.12)) % 128)) % 128)
-        let x = 80 + ((i * 97 + 19) % 159 - 79) * 91 / distance - filmSinRotation * 60
-        let y = 45 + ((i * 61 + 7) % 89 - 49) * 75 / distance
-        if (x < 0 || x > 159 || y < 8 || y > (soir ? 30 : 100)) continue
-        if (forceVol > 0) toile.drawLine(x, y,
-            x - (x - 80) * forceVol * 0.3,
-            y - (y - 55) * forceVol * 0.3, 8)
-        toile.setPixel(x, y, i % 5 == 0 ? 5 : distance < 62 ? 1 : 9)
+        let distance = 480 + ((i * 592 + 2048 - decalage) % 2048)
+        let x = 1280 + Math.idiv(((i * 97 + 19) % 159 - 79) * 23296, distance) - ((filmSinRotation * 960) >> 10)
+        let y = 720 + Math.idiv(((i * 61 + 7) % 89 - 49) * 19200, distance)
+        if (x < 0 || x > 2544 || y < 128 || y > (soir ? 480 : 1600)) continue
+        if (trainee > 0) toile.drawLine(x >> 4, y >> 4,
+            (x - (((x - 1280) * trainee) >> 10)) >> 4,
+            (y - (((y - 880) * trainee) >> 10)) >> 4, 8)
+        toile.setPixel(x >> 4, y >> 4, i % 5 == 0 ? 5 : distance < 992 ? 1 : 9)
     }
     // Des nuages horizontaux bougent avec le vol en 3D, au lieu de rester comme une image de fond immobile.
     for (let i = 0; i < 4; i++) {
-        let z = 18 + ((i * 25 + 150 - filmCameraZ) % 100)
-        let x = 80 + ((i % 2 == 0 ? -13 : 12) - filmCameraX) * 92 / z
-        let y = 49 + (3 + i % 2) * 92 / z
-        let largeur = Math.min(55, 700 / z)
-        toile.fillRect(x - largeur / 2, y, largeur, Math.max(1, 35 / z), soir ? 13 : 11)
+        let z = 18432 + ((i * 25600 + 153600 - filmCameraZ) % 102400)
+        let x = 1280 + Math.idiv(((i % 2 == 0 ? -13312 : 12288) - filmCameraX) * 1472, z)
+        let y = 784 + Math.idiv((3 + i % 2) * 1507328, z)
+        let largeur = Math.min(880, Math.idiv(11468800, z))
+        toile.fillRect((x - (largeur >> 1)) >> 4, y >> 4, largeur >> 4, 1, soir ? 13 : 11)
     }
 }
 
 function filmDessinerPorte(toile: Image, charge: number) {
-    if (filmCameraZ > 50) return
-    filmProjeter(0, 1.15, 52.5)
-    if (filmProfondeur < 2) return
+    if (filmCameraZ > 51200) return
+    filmProjeter(0, 1178, 53760)
+    if (filmProfondeur < 2048) return
+    // Le centre et les rayons de la porte d'abord en 16es de pixel ; la rotation et la taille des anneaux en 1024es.
     let centreX = filmEcranX
     let centreY = filmEcranY
-    let echelle = filmFocale / filmProfondeur
-    let demiLargeur = 3.25 * echelle
-    let demiHauteur = 3.8 * echelle
-    filmRemplirEllipse(toile, centreX, centreY, demiLargeur + 2, demiHauteur + 2, charge > 0.55 ? 9 : 8)
+    let echelle = filmFocale * 64 / filmProfondeur
+    let demiLargeur = Math.idiv(3328 * filmFocale, filmProfondeur)
+    let demiHauteur = Math.idiv(3891 * filmFocale, filmProfondeur)
+    filmRemplirEllipse(toile, centreX, centreY, demiLargeur + 32, demiHauteur + 32, charge > 0.55 ? 9 : 8)
     filmRemplirEllipse(toile, centreX, centreY, demiLargeur, demiHauteur, 15)
     let phase = filmMs * 0.0017
-    let cosinus = Math.cos(phase)
-    let sinus = Math.sin(phase)
+    let cosinus = Math.round(Math.cos(phase) * 1024)
+    let sinus = Math.round(Math.sin(phase) * 1024)
     for (let anneau = 0; anneau < 3; anneau++) {
-        let rayon = ((filmMs * 0.00016 + anneau / 3) % 1)
-        let precedentX = centreX + cosinus * demiLargeur * rayon
-        let precedentY = centreY + sinus * demiHauteur * rayon
+        let rayon = (Math.idiv(filmMs * 16384, 100000) + Math.idiv(anneau * 1024, 3)) & 1023
+        let precedentX = centreX + ((((cosinus * demiLargeur) >> 10) * rayon) >> 10)
+        let precedentY = centreY + ((((sinus * demiHauteur) >> 10) * rayon) >> 10)
         for (let i = 1; i <= 24; i++) {
-            let anneauX = filmAnneauX[i] * cosinus - filmAnneauY[i] * sinus
-            let anneauY = filmAnneauY[i] * cosinus + filmAnneauX[i] * sinus
-            let x = centreX + anneauX * demiLargeur * rayon
-            let y = centreY + anneauY * demiHauteur * rayon
-            toile.drawLine(precedentX, precedentY, x, y, anneau == 1 && charge > 0.5 ? 9 : 8)
+            let anneauX = (filmAnneauX[i] * cosinus - filmAnneauY[i] * sinus) >> 10
+            let anneauY = (filmAnneauY[i] * cosinus + filmAnneauX[i] * sinus) >> 10
+            let x = centreX + ((((anneauX * demiLargeur) >> 10) * rayon) >> 10)
+            let y = centreY + ((((anneauY * demiHauteur) >> 10) * rayon) >> 10)
+            toile.drawLine(precedentX >> 4, precedentY >> 4, x >> 4, y >> 4, anneau == 1 && charge > 0.5 ? 9 : 8)
             precedentX = x
             precedentY = y
         }
     }
+    // À partir d'ici, il reste peu de calculs par image : de nouveau en pixels entiers.
+    centreX = centreX / 16
+    centreY = centreY / 16
+    demiLargeur = demiLargeur / 16
+    demiHauteur = demiHauteur / 16
     if (charge > 0.02) {
         let largeurLumiere = Math.max(1, charge * 4)
         toile.fillRect(centreX - largeurLumiere - 2, 6, largeurLumiere * 2 + 5, centreY + demiHauteur - 6, 8)
@@ -474,26 +491,31 @@ function filmDessinerPorte(toile: Image, charge: number) {
 // On dessine en trois couches (contour, ombre et couleur) ; les lettres ne tremblent pas au hasard.
 function filmDessinerLettres(toile: Image, masque: Image, y: number, echelle: number, montreMs: number,
     colonneEclat: number, estDore: boolean, sensEntree: number) {
-    let departX = 80 - masque.width * echelle / 2
-    let echelleVerticale = masque == filmImageTitre ? echelle * 1.22 : echelle
+    // Des nombres entiers au lieu de nombres à virgule : taille et hauteur en 1024es. colonneEclat
+    // arrive déjà en 1024es.
+    echelle = Math.round(echelle * 1024)
+    y = Math.round(y * 1024)
+    let departX = 81920 - ((masque.width * echelle) >> 1)
+    let echelleVerticale = masque == filmImageTitre ? Math.idiv(echelle * 122, 100) : echelle
     let nombreLettres = Math.idiv(masque.width + 5, 6)
     // L'ombre grandit avec la taille ; sur de petits titres, un décalage fixe boucherait les creux des lettres.
-    let ombre = Math.min(3, Math.round(echelle))
-    let contour = Math.min(5, Math.round(echelle * 1.75))
+    let ombre = Math.min(3, (echelle + 512) >> 10)
+    let contour = Math.min(5, (((echelle * 7) >> 2) + 512) >> 10)
+    let largeur = Math.max(1, (echelle + 1023) >> 10)
+    let hauteur = Math.max(1, (echelleVerticale + 1023) >> 10)
     for (let couche = 0; couche < 3; couche++) {
         for (let lettre = 0; lettre < nombreLettres; lettre++) {
-            let progres = filmAdoucir((montreMs - lettre * 85) / 650)
+            let progres = Math.max(0, Math.min(1024, Math.idiv((montreMs - lettre * 85) * 1024, 650)))
+            progres = (((progres * progres) >> 10) * (3072 - 2 * progres)) >> 10
             if (progres <= 0) continue
-            let reste = 1 - progres
-            let decalageX = (lettre - (nombreLettres - 1) / 2) * reste * 16
-            let decalageY = reste * reste * 29 * sensEntree
+            let reste = 1024 - progres
+            let decalageX = (2 * lettre - nombreLettres + 1) * reste * 8
+            let decalageY = ((reste * reste) >> 10) * 29 * sensEntree
             for (let masqueX = lettre * 6; masqueX < Math.min(masque.width, lettre * 6 + 6); masqueX++) {
                 for (let masqueY = 0; masqueY < masque.height; masqueY++) {
                     if (!masque.getPixel(masqueX, masqueY)) continue
-                    let x = Math.round(departX + masqueX * echelle + decalageX)
-                    let ecranY = Math.round(y + masqueY * echelleVerticale + decalageY)
-                    let largeur = Math.max(1, Math.ceil(echelle))
-                    let hauteur = Math.max(1, Math.ceil(echelleVerticale))
+                    let x = (departX + masqueX * echelle + decalageX + 512) >> 10
+                    let ecranY = (y + masqueY * echelleVerticale + decalageY + 512) >> 10
                     if (couche == 0) {
                         toile.fillRect(x - 1, ecranY - 1, largeur + 2, hauteur + 2, 15)
                         toile.fillRect(x + 2, ecranY + contour, largeur + 1, hauteur + 1, 15)
@@ -502,7 +524,7 @@ function filmDessinerLettres(toile: Image, masque: Image, y: number, echelle: nu
                         largeur, hauteur + 1, estDore ? 4 : 8)
                     else {
                         let couleur = masqueY < Math.idiv(masque.height, 2) ? 1 : estDore ? 5 : 9
-                        if (Math.abs(masqueX - colonneEclat) < 2) couleur = 1
+                        if (Math.abs(masqueX * 1024 - colonneEclat) < 2048) couleur = 1
                         toile.fillRect(x, ecranY, largeur, hauteur, couleur)
                     }
                 }
@@ -511,16 +533,19 @@ function filmDessinerLettres(toile: Image, masque: Image, y: number, echelle: nu
     }
 }
 
+// Les rayons sont en 16es de pixel ; ici, force devient la longueur de la traînée.
 function filmDessinerLignesVitesse(toile: Image, force: number) {
+    force = Math.round((5 + force * 22) * 16)
     for (let i = 0; i < 12; i++) {
         let numeroAnneau = i * 2
-        let progres = ((filmMs * 0.0015 + i * 0.31) % 1)
-        let rayon = 20 + progres * 92
-        let x = 80 + filmAnneauX[numeroAnneau] * rayon
-        let y = 55 + filmAnneauY[numeroAnneau] * rayon * 0.7
-        let queue = rayon - (5 + force * 22)
-        toile.drawLine(x, y,
-            80 + filmAnneauX[numeroAnneau] * queue, 55 + filmAnneauY[numeroAnneau] * queue * 0.7,
+        let progres = (Math.idiv(filmMs * 1536, 1000) + Math.idiv(i * 31744, 100)) & 1023
+        let rayon = 320 + ((progres * 1472) >> 10)
+        let x = 1280 + ((filmAnneauX[numeroAnneau] * rayon) >> 10)
+        let y = 880 + Math.idiv(filmAnneauY[numeroAnneau] * rayon * 7, 10240)
+        let queue = rayon - force
+        toile.drawLine(x >> 4, y >> 4,
+            (1280 + ((filmAnneauX[numeroAnneau] * queue) >> 10)) >> 4,
+            (880 + Math.idiv(filmAnneauY[numeroAnneau] * queue * 7, 10240)) >> 4,
             i % 3 == 0 ? 9 : 8)
     }
 }
@@ -534,7 +559,7 @@ function filmDessinerLegende(toile: Image, texte: string, y: number, couleur: nu
 
 function dessinerFilm(toile: Image) {
     let tempsMs = filmMs
-    filmFocale = 92
+    filmFocale = 1472
     filmSoir = tempsMs >= FILM_SOIR_MS
     if (tempsMs < FILM_CHARGE_MS) {
         let progres = tempsMs / FILM_CHARGE_MS
@@ -553,7 +578,7 @@ function dessinerFilm(toile: Image) {
         let progres = (tempsMs - FILM_PASSAGE_MS) / 4000
         // Accélérer à travers la porte, puis freiner avant l'île d'arrivée.
         let progresAdouci = filmAdoucir(progres)
-        filmFocale = 92 - Math.sin(progres * Math.PI) * 16
+        filmFocale = Math.round((92 - Math.sin(progres * Math.PI) * 16) * 16)
         filmPlacerCamera(
             Math.sin(progres * Math.PI * 2) * 0.8,
             2.4 + progresAdouci * 4,
@@ -588,12 +613,13 @@ function dessinerFilm(toile: Image) {
     if (tempsMs >= FILM_CHARGE_MS && tempsMs < FILM_PASSAGE_MS) {
         let energie = filmAdoucir((tempsMs - FILM_CHARGE_MS) / 2400)
         // L'énergie attire des éclats visibles vers la porte avant qu'elle s'ouvre.
+        energie = 2 + energie * 2
         for (let i = 0; i < 8; i++) {
             let numeroAnneau = i * 3
-            let rayon = 18 + ((i * 13 + 97 - ((tempsMs - FILM_CHARGE_MS) / 17) % 97) % 97)
-            let x = 80 + filmAnneauX[numeroAnneau] * rayon
-            let y = 60 + filmAnneauY[numeroAnneau] * rayon * 0.68
-            toile.fillRect(x, y, 2 + energie * 2, 2 + energie * 2, i % 3 == 0 ? 5 : 9)
+            let rayon = 288 + ((i * 208 + 1552 - Math.idiv((tempsMs - FILM_CHARGE_MS) * 16, 17) % 1552) % 1552)
+            let x = 1280 + ((filmAnneauX[numeroAnneau] * rayon) >> 10)
+            let y = 960 + Math.idiv(filmAnneauY[numeroAnneau] * rayon * 17, 25600)
+            toile.fillRect(x >> 4, y >> 4, energie, energie, i % 3 == 0 ? 5 : 9)
         }
     }
     if (forceVol > 0.1) filmDessinerLignesVitesse(toile, forceVol)
@@ -601,9 +627,9 @@ function dessinerFilm(toile: Image) {
         let ecouleMs = tempsMs - FILM_CARTE_MS
         // La carte du studio : CALLIOPE et HACKER en lettres géantes, et dessous « présente ».
         filmDessinerLettres(toile, filmImageCalliope, 19, 2.85,
-            ecouleMs + 180, (ecouleMs - 1400) / 50, true, -1)
+            ecouleMs + 180, Math.idiv((ecouleMs - 1400) * 1024, 50), true, -1)
         filmDessinerLettres(toile, filmImageHacker, 55, 3.45,
-            ecouleMs - 180, (ecouleMs - 1700) / 48, false, 1)
+            ecouleMs - 180, Math.idiv((ecouleMs - 1700) * 1024, 48), false, 1)
         if (ecouleMs > 1200) {
             let devoile = filmAdoucir((ecouleMs - 1200) / 550)
             let y = 98 + Math.round((1 - devoile) * 6)
@@ -625,7 +651,7 @@ function dessinerFilm(toile: Image) {
         let apaisement = 1 - filmAdoucir(ecouleMs / 1000)
         // Une entrée calme et grande pour le titre : le vol de la caméra continue dessous.
         filmDessinerLettres(toile, filmImageTitre, 15 - apaisement * 7,
-            filmEchelleTitre(148) + apaisement * 0.12, ecouleMs + 120, (ecouleMs - 1800) / 33, true, -1)
+            filmEchelleTitre(148) + apaisement * 0.12, ecouleMs + 120, Math.idiv((ecouleMs - 1800) * 1024, 33), true, -1)
         if (ecouleMs > 1600) filmDessinerLegende(toile, "BÂTIS TON PROPRE MONDE", 51, 13)
         // Des feuilles et des étincelles au premier plan bougent avec le mouvement de la caméra.
         for (let i = 0; i < 8; i++) {
