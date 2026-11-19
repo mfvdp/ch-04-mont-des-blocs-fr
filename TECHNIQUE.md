@@ -18,7 +18,7 @@ Les fichiers du jeu :
 - `film.ts` : L'intro avec la carte du studio et le titre.
 - `son.ts` : les sons du jeu : courts, fabriqués par le programme, sans fichiers audio et sans lecture bloquante (tout
   se joue en arrière-plan).
-- `exercice.ts` : L'exercice en sept étapes sur un terrain à part.
+- `exercice.ts` : L'exercice en huit étapes sur un terrain à part.
 - `hacker.ts` : les images du Calliope Hacker, dans les couleurs de la palette de ce jeu.
 - `main.ts` : démarrage, commandes, établi et affichage.
 

@@ -13,6 +13,8 @@ l'image accrochée au mur de l'établi.
 - **Croix directionnelle gauche et droite :** tourner
 - **Tenir B et appuyer sur haut ou bas :** regarder vers le haut ou vers le bas
 - **Tenir A :** creuser le bloc visé par le viseur
+- **Appui bref sur A :** sauter
+- **Appui bref sur B pendant le saut :** poser un bloc sous tes pieds, pour sortir de n'importe quel trou
 - **Appui bref sur B :** poser un bloc de ta réserve
 - **Tenir B et appuyer sur gauche ou droite :** choisir un autre matériau
 - **MENU :** établi pour fabriquer, sauvegarder la partie, retour au départ et plus encore (B valide la ligne choisie, A

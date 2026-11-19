@@ -1,4 +1,4 @@
-// L'exercice en sept étapes sur un terrain à part. À la fin, la vraie partie (monde, réserve et position)
+// L'exercice en huit étapes sur un terrain à part. À la fin, la vraie partie (monde, réserve et position)
 // revient comme avant.
 let exerciceActif = false
 let exerciceEtape = 0
@@ -8,6 +8,9 @@ let copiePartie: Buffer = null
 let exerciceDepartZ = 0
 let exerciceAuBout = false
 let etaitNonSauve = false
+// L'étape 8 entraîne le saut et la construction vers le haut dans un trou ; l'étape 9 est la carte de fin.
+const EXERCICE_SAUT = 8
+const EXERCICE_FIN = 9
 let exerciceTitres = [
     "TON AVENTURE COMMENCE",
     "01  SE DÉPLACER",
@@ -17,6 +20,7 @@ let exerciceTitres = [
     "05  TON PREMIER BLOC",
     "06  CHOISIR LE MATÉRIAU",
     "07  L'ÉTABLI",
+    "08  SORS DU TROU",
     "PRÊT POUR TON MONDE"
 ]
 let exerciceLigne1 = [
@@ -28,10 +32,11 @@ let exerciceLigne1 = [
     "Appuie brièvement sur B",
     "Maintiens B + DROITE.",
     "Ouvre MENU.",
+    "Touche A : tu sautes.",
     "Explore. Récolte. Bâtis."
 ]
 let exerciceLigne2 = [
-    "Sept petits défis.",
+    "Huit petits défis.",
     "Rejoins le bloc test.",
     "Tu peux ainsi tourner.",
     "Déplace ton regard.",
@@ -39,6 +44,7 @@ let exerciceLigne2 = [
     "Pose devant la pierre.",
     "Choisis un matériau.",
     "Fabrique une pioche.",
+    "Puis B : bloc sous toi.",
     "A : en route !"
 ]
 
@@ -111,7 +117,21 @@ function passerEtapeSuivante() {
         persoY = 4 * UNITE
         vitesseChute = 0
     }
-    if (exerciceEtape == 8) {
+    if (exerciceEtape == EXERCICE_SAUT) {
+        // Un trou de deux blocs de profondeur : on n'en sort pas en marchant, mais en construisant vers le haut, oui.
+        menuOuvert = false
+        ecrireBloc(10, 1, 5, Bloc.Pierre)
+        ecrireBloc(10, 2, 5, Bloc.Air)
+        ecrireBloc(10, 3, 5, Bloc.Air)
+        persoX = 10 * UNITE + 128
+        persoZ = 5 * UNITE + 128
+        persoY = 2 * UNITE
+        vitesseChute = 0
+        enSaut = false
+        rotation = 0
+        inclinaison = -0.16
+    }
+    if (exerciceEtape == EXERCICE_FIN) {
         exerciceAuBout = true
         menuOuvert = false
     }
@@ -136,10 +156,13 @@ function actualiserExercice(dureeMs: number, sensRotation: number, sensInclinais
     } else if (exerciceEtape == 3) {
         exerciceProgres += Math.abs(sensInclinaison) * dureeMs / 260
         if (exerciceProgres >= 1) passerEtapeSuivante()
+    } else if (exerciceEtape == EXERCICE_SAUT && persoY >= 4 * UNITE && persoHeurte(persoX, persoY - 1, persoZ)) {
+        // Réussi dès que le personnage est de nouveau en haut, sur la prairie.
+        passerEtapeSuivante()
     }
 }
 function dessinerExercice(toile: Image) {
-    if (exerciceEtape == 0 || exerciceEtape == 8) {
+    if (exerciceEtape == 0 || exerciceEtape == EXERCICE_FIN) {
         toile.fillRect(4, 30, 152, 61, 15)
         toile.drawRect(4, 30, 152, 61, 6)
         let titre = exerciceTitres[exerciceEtape]
@@ -160,13 +183,13 @@ function dessinerExercice(toile: Image) {
         toile.print(exerciceTitres[exerciceEtape], 4, 84, 5, image.font8)
         toile.print(exerciceLigne1[exerciceEtape], 4, 94, 1, image.font8)
         toile.print(exerciceLigne2[exerciceEtape], 4, 103, 13, image.font8)
-        for (let i = 0; i < 7; i++) {
+        for (let i = 0; i < 8; i++) {
             toile.fillRect(114 + i * 6, 73, 4, 3,
                 i < exerciceEtape - 1 ? 7 : i == exerciceEtape - 1 ? 5 : 12)
         }
     }
     toile.fillRect(0, 0, 160, 8, 15)
-    toile.print("EXERCICE " + Math.min(7, exerciceEtape) + "/7", 2, 1, 9, image.font8)
+    toile.print("EXERCICE " + Math.min(8, exerciceEtape) + "/8", 2, 1, 9, image.font8)
     toile.print(exerciceEtape == 7 ? "MENU" : "MENU: FIN",
         exerciceEtape == 7 ? 134 : 88, 1, 13, image.font8)
 }

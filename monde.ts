@@ -9,6 +9,11 @@ const PERSO_HAUTEUR = 410
 const HAUTEUR_YEUX = 350
 const NB_BLOCS = MONDE_LARGEUR * MONDE_LARGEUR * MONDE_HAUTEUR
 const SAUVEGARDE_TAILLE = 64 + NB_BLOCS / 2 + 2
+// Vitesse de départ d'un saut, en 1/256 de bloc par seconde. Le personnage monte d'environ 1,27 bloc : juste assez pour
+// sauter sur un bloc et poser un bloc sous lui pendant le saut.
+const SAUT_VITESSE = 1140
+// Si l'espace autour du personnage a moins de cases que ce nombre, il compte comme un trou.
+const TROU_LIMITE = 20
 enum Bloc { Air, Herbe, Terre, Pierre, Bois, Feuilles, Planches, Cristal, RocheMere }
 let monde = control.createBuffer(NB_BLOCS)
 let reserve = [0, 0, 24, 16, 8, 0, 12, 0, 0]
@@ -23,6 +28,18 @@ let rotation = 0
 let inclinaison = -0.16
 let vitesseChute = 0
 let auSol = true
+// Le personnage est-il en l'air à cause d'un saut, et à quelle hauteur (en blocs) étaient ses pieds au moment du saut.
+let enSaut = false
+let hauteurAppel = 0
+// Ce qui reste du dernier déplacement vertical parce que c'était moins de 1/256 de bloc (en 2000es). Ainsi, rien ne se
+// perd quand on calcule avec des nombres entiers.
+let resteChute = 0
+// Aide-mémoire pour chercher un trou : les cases déjà visitées et une file des cases encore à voir. Ils sont créés une
+// seule fois, pas à chaque image.
+let trouVu = control.createBuffer(MONDE_LARGEUR * MONDE_LARGEUR)
+let trouX = control.createBuffer(TROU_LIMITE)
+let trouZ = control.createBuffer(TROU_LIMITE)
+let trouPieds = control.createBuffer(TROU_LIMITE)
 let nonSauve = false
 let largeurRayon = 4
 let aPioche = false
@@ -122,6 +139,7 @@ function retournerAuDepart() {
     ecrireBloc(12, 5, 4, Bloc.Air)
     vitesseChute = 0
     auSol = true
+    enSaut = false
 }
 function deplacerSurAxe(dx: number, dz: number) {
     if (!persoHeurte(persoX + dx, persoY, persoZ + dz)) {
@@ -141,12 +159,19 @@ function deplacerSurAxe(dx: number, dz: number) {
 function deplacerPerso(avance: number, dureeMs: number) {
     dureeMs = Math.max(0, Math.min(80, dureeMs))
     if (dureeMs == 0) return
-    auSol = persoHeurte(persoX, persoY - 2, persoZ)
+    // Qui monte en volant n'est pas debout sur le sol. Ainsi, le personnage ne monte pas en plus une marche au
+    // moment du saut.
+    auSol = vitesseChute <= 0 && persoHeurte(persoX, persoY - 2, persoZ)
     let distance = Math.idiv(avance * dureeMs * 7, 10)
     deplacerSurAxe(Math.round(Math.sin(rotation) * distance), 0)
     deplacerSurAxe(0, Math.round(Math.cos(rotation) * distance))
+    // Chemin selon l'horloge : la vitesse moyenne avant et après le pas de temps, multipliée par la durée. Ainsi, un
+    // saut monte aussi haut, qu'une image dure 16 ou 80 millisecondes.
+    let vitesseAvant = vitesseChute
     vitesseChute = Math.max(-1100, vitesseChute - dureeMs * 2)
-    let mouvement = Math.idiv(vitesseChute * dureeMs, 1000)
+    let trajet = (vitesseAvant + vitesseChute) * dureeMs + resteChute
+    let mouvement = Math.idiv(trajet, 2000)
+    resteChute = trajet - mouvement * 2000
     let morceaux = Math.max(1, Math.ceil(Math.abs(mouvement) / 24))
     for (let i = 0; i < morceaux; i++) {
         let dy = Math.idiv(mouvement * (i + 1), morceaux) - Math.idiv(mouvement * i, morceaux)
@@ -159,10 +184,87 @@ function deplacerPerso(avance: number, dureeMs: number) {
                 persoY += sens
             }
             vitesseChute = 0
+            resteChute = 0
             break
         }
     }
     auSol = persoHeurte(persoX, persoY - 1, persoZ)
+    if (auSol && vitesseChute <= 0) enSaut = false
+}
+// On ne saute que depuis le sol, pas en l'air.
+function sauter(): boolean {
+    if (!persoHeurte(persoX, persoY - 1, persoZ)) return false
+    vitesseChute = SAUT_VITESSE
+    resteChute = 0
+    auSol = false
+    enSaut = true
+    hauteurAppel = persoY >> 8
+    return true
+}
+// Pendant un saut, poser un bloc sous les pieds (construire vers le haut). Si le matériau choisi est épuisé, le
+// personnage prend le matériau suivant dont il lui reste encore.
+function poserSousSoi(): boolean {
+    if (!enSaut || persoY < (hauteurAppel + 1) * UNITE) return false
+    if (reserve[materiaux[placeChoisie]] == 0) {
+        for (let i = 1; i < materiaux.length; i++) {
+            let suivant = (placeChoisie + i) % materiaux.length
+            if (reserve[materiaux[suivant]] > 0) {
+                placeChoisie = suivant
+                break
+            }
+        }
+    }
+    return poserBloc(persoX >> 8, hauteurAppel, persoZ >> 8)
+}
+// Le personnage a-t-il encore un matériau, quel qu'il soit ?
+function resteMateriau(): boolean {
+    for (let i = 0; i < materiaux.length; i++) {
+        if (reserve[materiaux[i]] > 0) return true
+    }
+    return false
+}
+// Où arrive le personnage depuis sa case sur la case voisine, seulement en marchant et en sautant ? La réponse est la
+// nouvelle hauteur de ses pieds, ou -1 si ce n'est pas possible.
+function hauteurAtteinte(x: number, z: number, pieds: number, voisinX: number, voisinZ: number): number {
+    if (voisinX < 0 || voisinZ < 0 || voisinX >= MONDE_LARGEUR || voisinZ >= MONDE_LARGEUR) return -1
+    if (blocEn(voisinX, pieds, voisinZ) == Bloc.Air && blocEn(voisinX, pieds + 1, voisinZ) == Bloc.Air) {
+        let y = pieds
+        while (y > 1 && blocEn(voisinX, y - 1, voisinZ) == Bloc.Air) y--
+        return y
+    }
+    if (blocEn(voisinX, pieds + 1, voisinZ) == Bloc.Air && blocEn(voisinX, pieds + 2, voisinZ) == Bloc.Air &&
+        blocEn(x, pieds + 2, z) == Bloc.Air) return pieds + 1
+    return -1
+}
+// Compte les cases que le personnage atteint en marchant et en sautant, mais seulement jusqu'à la limite d'un trou.
+// Moins de cases veut dire : il est dans un trou et n'en sort qu'en construisant vers le haut ou en creusant.
+function compterPlace(): number {
+    trouVu.fill(0)
+    trouX[0] = persoX >> 8
+    trouZ[0] = persoZ >> 8
+    trouPieds[0] = persoY >> 8
+    trouVu[trouX[0] + MONDE_LARGEUR * trouZ[0]] = 1
+    let nombre = 1
+    let suivante = 0
+    while (suivante < nombre) {
+        let x = trouX[suivante]
+        let z = trouZ[suivante]
+        let pieds = trouPieds[suivante]
+        suivante++
+        for (let cote = 0; cote < 4; cote++) {
+            let voisinX = x + (cote == 0 ? 1 : cote == 1 ? -1 : 0)
+            let voisinZ = z + (cote == 2 ? 1 : cote == 3 ? -1 : 0)
+            let atteinte = hauteurAtteinte(x, z, pieds, voisinX, voisinZ)
+            if (atteinte < 0 || trouVu[voisinX + MONDE_LARGEUR * voisinZ] == 1) continue
+            if (nombre >= TROU_LIMITE) return TROU_LIMITE
+            trouVu[voisinX + MONDE_LARGEUR * voisinZ] = 1
+            trouX[nombre] = voisinX
+            trouZ[nombre] = voisinZ
+            trouPieds[nombre] = atteinte
+            nombre++
+        }
+    }
+    return nombre
 }
 function creuserBloc(x: number, y: number, z: number): boolean {
     let sorte = blocEn(x, y, z)
@@ -262,6 +364,7 @@ function decoderSauvegarde(donnees: Buffer): boolean {
         reserve[i] = donnees.getNumber(NumberFormat.UInt16LE, 18 + i * 2)
     }
     vitesseChute = 0
+    enSaut = false
     nonSauve = false
     if (persoHeurte(persoX, persoY, persoZ)) retournerAuDepart()
     else auSol = persoHeurte(persoX, persoY - 1, persoZ)
